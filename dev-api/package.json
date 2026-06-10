@@ -1,0 +1,18 @@
+{
+  "name": "klearcom-dev-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file=.env src/server.js",
+    "seed": "node --env-file=.env src/seed.js",
+    "seed:force": "node --env-file=.env src/seed.js --force"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "mongodb": "^6.12.0",
+    "mongodb-memory-server": "^10.1.4"
+  }
+}

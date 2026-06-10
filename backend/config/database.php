@@ -1,0 +1,25 @@
+<?php
+
+return [
+    'default' => env('DB_CONNECTION', 'mysql'),
+
+    'connections' => [
+        'mysql' => [
+            'driver' => 'mysql',
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '3306'),
+            'database' => env('DB_DATABASE', 'klearcom'),
+            'username' => env('DB_USERNAME', 'klearcom'),
+            'password' => env('DB_PASSWORD', ''),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'strict' => true,
+            'engine' => null,
+        ],
+    ],
+
+    'mongodb' => [
+        'uri' => env('MONGODB_URI', 'mongodb://127.0.0.1:27017/klearcom'),
+    ],
+];
