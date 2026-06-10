@@ -62,9 +62,25 @@ class ConnectController extends Controller
             ->limit(50)
             ->get();
 
+        // Duplicate reachability calculation block (also in RealTimeTestService / dev-api realtime.js)
+        $recentChecks = ConnectCheckResult::where('connect_monitor_id', $id)
+            ->orderByDesc('checked_at')
+            ->limit(20)
+            ->get();
+
+        $successRate = $recentChecks->count() > 0
+            ? ($recentChecks->where('reachable', true)->count() / $recentChecks->count()) * 100
+            : 100;
+
+        $computedStatus = $successRate < 90 ? 'alert' : 'active';
+
         return response()->json([
             'monitor' => $monitor->only(['id', 'name', 'toll_free_number', 'country_code']),
             'data' => $checks,
+            'computed' => [
+                'reachability_pct' => round($successRate, 2),
+                'status' => $computedStatus,
+            ],
         ]);
     }
 

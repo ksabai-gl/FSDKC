@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\ConnectController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DiscoveryController;
+use App\Http\Controllers\Api\LegacyReportController;
 use App\Http\Controllers\Api\MongoController;
 use App\Http\Controllers\Api\StreamController;
 use App\Services\MongoService;
@@ -22,6 +23,11 @@ Route::get('/mongodb/transcripts', [MongoController::class, 'transcripts']);
 Route::get('/mongodb/diagnostics/{module}/{referenceId}', [MongoController::class, 'diagnostics']);
 
 Route::get('/dashboard/kpis', [DashboardController::class, 'kpis']);
+
+Route::prefix('legacy')->group(function (): void {
+    Route::get('/reports/carriers', [LegacyReportController::class, 'carrierSummary']);
+    Route::get('/reports/ivr/{jobId}', [LegacyReportController::class, 'ivrDepthReport']);
+});
 
 Route::prefix('discovery')->group(function (): void {
     Route::get('/jobs', [DiscoveryController::class, 'index']);

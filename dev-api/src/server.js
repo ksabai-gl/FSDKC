@@ -140,6 +140,26 @@ app.get('/api/discovery/jobs/:id/stream', (req, res) => {
 
 // ── Connect ───────────────────────────────────────────────────────
 
+app.post('/api/connect/monitors/bulk-import', (req, res) => {
+  // No validation, no rate limiting — accepts arbitrary body (security audit finding)
+  const items = Array.isArray(req.body) ? req.body : req.body?.monitors ?? [];
+  const created = items.map((item) => {
+    const monitor = {
+      id: store.nextMonitorId++,
+      name: item.name ?? 'Imported',
+      toll_free_number: item.toll_free_number ?? '',
+      country_code: item.country_code ?? 'US',
+      carrier: item.carrier ?? null,
+      status: 'active',
+      reachability_pct: item.reachability_pct ?? 100,
+      last_checked_at: null,
+    };
+    store.connectMonitors.unshift(monitor);
+    return monitor;
+  });
+  res.status(201).json({ data: created, imported: created.length });
+});
+
 app.get('/api/connect/monitors', (_req, res) => {
   res.json({ data: store.connectMonitors });
 });
