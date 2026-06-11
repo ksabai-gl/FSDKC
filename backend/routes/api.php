@@ -31,18 +31,18 @@ Route::prefix('legacy')->group(function (): void {
 
 Route::prefix('discovery')->group(function (): void {
     Route::get('/jobs', [DiscoveryController::class, 'index']);
-    Route::post('/jobs', [DiscoveryController::class, 'store']);
+    Route::post('/jobs', [DiscoveryController::class, 'store'])->middleware('throttle:30,1');
     Route::get('/jobs/{id}', [DiscoveryController::class, 'show']);
     Route::get('/jobs/{id}/tree', [DiscoveryController::class, 'tree']);
-    Route::post('/jobs/{id}/start', [DiscoveryController::class, 'start']);
+    Route::post('/jobs/{id}/start', [DiscoveryController::class, 'start'])->middleware('throttle:10,1');
     Route::get('/jobs/{id}/stream', [StreamController::class, 'discoveryEvents']);
 });
 
 Route::prefix('connect')->group(function (): void {
     Route::get('/monitors', [ConnectController::class, 'index']);
-    Route::post('/monitors', [ConnectController::class, 'store']);
+    Route::post('/monitors', [ConnectController::class, 'store'])->middleware('throttle:30,1');
     Route::get('/monitors/{id}', [ConnectController::class, 'show']);
     Route::get('/monitors/{id}/checks', [ConnectController::class, 'checks']);
-    Route::post('/monitors/{id}/run-check', [ConnectController::class, 'runCheck']);
+    Route::post('/monitors/{id}/run-check', [ConnectController::class, 'runCheck'])->middleware('throttle:10,1');
     Route::get('/monitors/{id}/stream', [StreamController::class, 'connectEvents']);
 });

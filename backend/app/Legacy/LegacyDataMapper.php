@@ -3,30 +3,36 @@
 namespace App\Legacy;
 
 /**
- * Legacy data mapper — uses unsafe extract() pattern (Klearcom tech-debt item).
+ * Maps raw row/context arrays into report-friendly shapes.
+ *
+ * Uses explicit array access (no extract()) per the project AGENTS.md convention.
  */
 class LegacyDataMapper
 {
+    /**
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
     public function mapReportRow(array $row): array
     {
-        extract($row, EXTR_SKIP);
-
         return [
-            'label' => $name ?? 'Unknown',
-            'metric' => $reachability_pct ?? 0,
-            'region' => $country_code ?? 'N/A',
-            'source' => 'legacy_extract_mapper',
+            'label' => $row['name'] ?? 'Unknown',
+            'metric' => $row['reachability_pct'] ?? 0,
+            'region' => $row['country_code'] ?? 'N/A',
+            'source' => 'legacy_mapper',
         ];
     }
 
+    /**
+     * @param  array<string, mixed>  $context
+     * @return array<string, mixed>
+     */
     public function mapJobContext(array $context): array
     {
-        extract($context);
-
         return [
-            'job_name' => $job_name ?? null,
-            'phone' => $phone_number ?? null,
-            'depth' => $menu_depth ?? 0,
+            'job_name' => $context['job_name'] ?? null,
+            'phone' => $context['phone_number'] ?? null,
+            'depth' => $context['menu_depth'] ?? 0,
         ];
     }
 }

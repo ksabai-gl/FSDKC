@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
+import { endpoints } from '../api/endpoints';
 import type { DashboardKpis } from '../types';
 
 export default function DashboardPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard', 'kpis'],
-    queryFn: () => api.get<DashboardKpis>('/dashboard/kpis'),
+    queryFn: () => api.get<DashboardKpis>(endpoints.dashboard.kpis),
   });
 
   if (isLoading) return <div className="empty">Loading KPIs…</div>;

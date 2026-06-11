@@ -6,12 +6,14 @@ use App\Models\ConnectCheckResult;
 use App\Models\ConnectMonitor;
 use App\Models\DiscoveryJob;
 use App\Models\DiscoveryNode;
+use App\Support\ReachabilityCalculator;
 use Illuminate\Support\Str;
 
 class RealTimeTestService
 {
     public function __construct(
-        private readonly MongoService $mongo
+        private readonly MongoService $mongo,
+        private readonly ReachabilityCalculator $reachability
     ) {}
 
     public function createSession(): string
@@ -115,11 +117,11 @@ class RealTimeTestService
         ]);
 
         $recent = ConnectCheckResult::where('connect_monitor_id', $monitorId)->orderByDesc('checked_at')->limit(20)->get();
-        $rate = $recent->count() > 0 ? ($recent->where('reachable', true)->count() / $recent->count()) * 100 : 100;
+        $rate = $this->reachability->successRate($recent);
 
         $monitor->update([
-            'reachability_pct' => round($rate, 2),
-            'status' => $rate < 90 ? 'alert' : 'active',
+            'reachability_pct' => $rate,
+            'status' => $this->reachability->status($rate),
             'last_checked_at' => now(),
         ]);
 

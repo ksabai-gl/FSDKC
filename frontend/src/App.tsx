@@ -1,4 +1,5 @@
 import { NavLink, Route, Routes } from 'react-router-dom';
+import ErrorBoundary from './components/ErrorBoundary';
 import MongoStatus from './components/MongoStatus';
 import DashboardPage from './pages/DashboardPage';
 import DiscoveryPage from './pages/DiscoveryPage';
@@ -8,7 +9,6 @@ export default function App() {
   return (
     <div className="app-layout">
       <aside className="sidebar">
-        <div className="logo">Klear<span>com</span></div>
         <nav>
           <NavLink to="/" end className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
             Dashboard
@@ -28,11 +28,13 @@ export default function App() {
         </div>
       </aside>
       <main className="main">
-        <Routes>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/discovery" element={<DiscoveryPage />} />
-          <Route path="/connect" element={<ConnectPage />} />
-        </Routes>
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/discovery" element={<DiscoveryPage />} />
+            <Route path="/connect" element={<ConnectPage />} />
+          </Routes>
+        </ErrorBoundary>
       </main>
     </div>
   );

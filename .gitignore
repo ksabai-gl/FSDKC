@@ -6,3 +6,12 @@ frontend/dist/
 .env
 dev-api/.env
 *.log
+*.tsbuildinfo
+
+# Test / framework caches
+backend/.phpunit.result.cache
+backend/bootstrap/cache/*.php
+
+# Agent orchestration artifacts (not part of the product)
+agent-runs/
+.kiro/

@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
+import { endpoints } from '../api/endpoints';
 import type { MongoHealth } from '../types';
 
 export default function MongoStatus() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['mongodb', 'status'],
-    queryFn: () => api.get<MongoHealth>('/mongodb/status'),
+    queryFn: () => api.get<MongoHealth>(endpoints.mongodb.status),
     refetchInterval: 15_000,
   });
 

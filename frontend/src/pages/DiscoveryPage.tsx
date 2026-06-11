@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useState } from 'react';
 import { api } from '../api/client';
+import { endpoints } from '../api/endpoints';
 import LiveTestFeed from '../components/LiveTestFeed';
 import { useRealtimeTest } from '../hooks/useRealtimeTest';
 import { useUiStore } from '../store/uiStore';
@@ -17,26 +18,26 @@ export default function DiscoveryPage() {
 
   const jobsQuery = useQuery({
     queryKey: ['discovery', 'jobs'],
-    queryFn: () => api.get<{ data: DiscoveryJob[] }>('/discovery/jobs'),
+    queryFn: () => api.get<{ data: DiscoveryJob[] }>(endpoints.discovery.jobs),
     refetchInterval: isRunning ? 2000 : false,
   });
 
   const treeQuery = useQuery({
     queryKey: ['discovery', 'tree', selectedId],
-    queryFn: () => api.get<{ tree: DiscoveryNode[] }>(`/discovery/jobs/${selectedId}/tree`),
+    queryFn: () => api.get<{ tree: DiscoveryNode[] }>(endpoints.discovery.tree(selectedId!)),
     enabled: selectedId !== null,
     refetchInterval: isRunning ? 2000 : false,
   });
 
   const transcriptsQuery = useQuery({
     queryKey: ['mongodb', 'transcripts', 'discovery', selectedId],
-    queryFn: () => api.get<{ data: Transcript[] }>(`/mongodb/transcripts?module=discovery&reference_id=${selectedId}`),
+    queryFn: () => api.get<{ data: Transcript[] }>(endpoints.mongodb.transcripts('discovery', selectedId!)),
     enabled: selectedId !== null,
     refetchInterval: isRunning ? 1500 : false,
   });
 
   const createMutation = useMutation({
-    mutationFn: (body: typeof form) => api.post('/discovery/jobs', { ...body, languages: ['en'] }),
+    mutationFn: (body: typeof form) => api.post(endpoints.discovery.jobs, { ...body, languages: ['en'] }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['discovery'] });
       setForm({ name: '', phone_number: '', country_code: 'US' });

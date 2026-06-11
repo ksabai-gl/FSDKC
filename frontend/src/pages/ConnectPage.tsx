@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useState } from 'react';
 import { api } from '../api/client';
+import { endpoints } from '../api/endpoints';
 import LiveTestFeed from '../components/LiveTestFeed';
 import { useRealtimeTest } from '../hooks/useRealtimeTest';
 import { useUiStore } from '../store/uiStore';
@@ -21,26 +22,26 @@ export default function ConnectPage() {
 
   const monitorsQuery = useQuery({
     queryKey: ['connect', 'monitors'],
-    queryFn: () => api.get<{ data: ConnectMonitor[] }>('/connect/monitors'),
+    queryFn: () => api.get<{ data: ConnectMonitor[] }>(endpoints.connect.monitors),
     refetchInterval: isRunning ? 2000 : false,
   });
 
   const checksQuery = useQuery({
     queryKey: ['connect', 'checks', selectedId],
-    queryFn: () => api.get<{ data: ConnectCheckResult[] }>(`/connect/monitors/${selectedId}/checks`),
+    queryFn: () => api.get<{ data: ConnectCheckResult[] }>(endpoints.connect.checks(selectedId!)),
     enabled: selectedId !== null,
     refetchInterval: isRunning ? 2000 : false,
   });
 
   const transcriptsQuery = useQuery({
     queryKey: ['mongodb', 'transcripts', 'connect', selectedId],
-    queryFn: () => api.get<{ data: Transcript[] }>(`/mongodb/transcripts?module=connect&reference_id=${selectedId}`),
+    queryFn: () => api.get<{ data: Transcript[] }>(endpoints.mongodb.transcripts('connect', selectedId!)),
     enabled: selectedId !== null,
     refetchInterval: isRunning ? 1500 : false,
   });
 
   const createMutation = useMutation({
-    mutationFn: (body: typeof form) => api.post('/connect/monitors', body),
+    mutationFn: (body: typeof form) => api.post(endpoints.connect.monitors, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['connect'] });
       setForm({ name: '', toll_free_number: '', country_code: 'US', carrier: '' });
