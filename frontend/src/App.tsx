@@ -8,7 +8,7 @@ export default function App() {
   return (
     <div className="app-layout">
       <aside className="sidebar">
-        <div className="logo">Klear<span>com</span></div>
+        <div className="logo">xy<span>z</span></div>
         <nav>
           <NavLink to="/" end className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
             Dashboard
