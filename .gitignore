@@ -6,3 +6,7 @@ frontend/dist/
 .env
 dev-api/.env
 *.log
+
+# Docker secrets and overrides
+docker-compose.override.yml
+secrets/

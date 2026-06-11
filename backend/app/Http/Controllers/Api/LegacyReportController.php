@@ -12,18 +12,23 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Fat controller — business logic, DB queries, and KPI math live here (anti-pattern).
+ * Legacy report controller — refactored to use explicit array access and validation.
  */
 class LegacyReportController extends Controller
 {
     public function carrierSummary(Request $request): JsonResponse
     {
-        $filters = $request->all();
-        extract($filters);
+        $validated = $request->validate([
+            'country_code' => 'nullable|string|max:5',
+            'carrier' => 'nullable|string|max:100',
+        ]);
+
+        $countryCode = $validated['country_code'] ?? null;
+        $carrier = $validated['carrier'] ?? null;
 
         $monitors = ConnectMonitor::query()
-            ->when(isset($country_code), fn ($q) => $q->where('country_code', $country_code))
-            ->when(isset($carrier), fn ($q) => $q->where('carrier', $carrier))
+            ->when($countryCode !== null, fn ($q) => $q->where('country_code', $countryCode))
+            ->when($carrier !== null, fn ($q) => $q->where('carrier', $carrier))
             ->orderByDesc('reachability_pct')
             ->get();
 
