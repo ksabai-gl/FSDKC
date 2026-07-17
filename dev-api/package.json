@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node --env-file=.env src/server.js",
     "seed": "node --env-file=.env src/seed.js",
-    "seed:force": "node --env-file=.env src/seed.js --force"
+    "seed:force": "node --env-file=.env src/seed.js --force",
+    "test": "node --test src/__tests__/**/*.test.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

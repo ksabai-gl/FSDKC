@@ -33,6 +33,8 @@ jobs:
         working-directory: backend
       - run: cp .env.example .env && php artisan key:generate
         working-directory: backend
+      - name: Initialize database schema
+        run: mysql -h 127.0.0.1 -uklearcom -psecret klearcom < docker/mariadb/init.sql
       - run: vendor/bin/phpunit
         working-directory: backend
         env:
@@ -40,6 +42,7 @@ jobs:
           DB_DATABASE: klearcom
           DB_USERNAME: klearcom
           DB_PASSWORD: secret
+          KLEARCOM_AUTH_ENABLED: true
 
   frontend:
     runs-on: ubuntu-latest
@@ -50,5 +53,19 @@ jobs:
           node-version: '22'
       - run: npm ci || npm install
         working-directory: frontend
+      - run: npm test
+        working-directory: frontend
       - run: npm run build
         working-directory: frontend
+
+  dev-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci || npm install
+        working-directory: dev-api
+      - run: npm test
+        working-directory: dev-api

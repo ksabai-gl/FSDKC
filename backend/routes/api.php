@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ConnectController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DiscoveryController;
@@ -13,36 +14,42 @@ Route::get('/health', function (MongoService $mongo) {
     return response()->json([
         'status' => 'ok',
         'platform' => 'Klearcom',
-        'version' => '1.0.0',
+        'version' => '1.1.0',
         'mongodb' => $mongo->health(),
     ]);
 });
 
-Route::get('/mongodb/status', [MongoController::class, 'status']);
-Route::get('/mongodb/transcripts', [MongoController::class, 'transcripts']);
-Route::get('/mongodb/diagnostics/{module}/{referenceId}', [MongoController::class, 'diagnostics']);
+Route::post('/auth/token', [AuthController::class, 'token'])->middleware('throttle:10,1');
 
-Route::get('/dashboard/kpis', [DashboardController::class, 'kpis']);
+Route::middleware('klearcom.auth')->group(function (): void {
+    Route::get('/mongodb/status', [MongoController::class, 'status']);
+    Route::get('/mongodb/transcripts', [MongoController::class, 'transcripts']);
+    Route::get('/mongodb/diagnostics/{module}/{referenceId}', [MongoController::class, 'diagnostics']);
 
-Route::prefix('legacy')->group(function (): void {
-    Route::get('/reports/carriers', [LegacyReportController::class, 'carrierSummary']);
-    Route::get('/reports/ivr/{jobId}', [LegacyReportController::class, 'ivrDepthReport']);
-});
+    Route::get('/dashboard/kpis', [DashboardController::class, 'kpis']);
 
-Route::prefix('discovery')->group(function (): void {
-    Route::get('/jobs', [DiscoveryController::class, 'index']);
-    Route::post('/jobs', [DiscoveryController::class, 'store']);
-    Route::get('/jobs/{id}', [DiscoveryController::class, 'show']);
-    Route::get('/jobs/{id}/tree', [DiscoveryController::class, 'tree']);
-    Route::post('/jobs/{id}/start', [DiscoveryController::class, 'start']);
-    Route::get('/jobs/{id}/stream', [StreamController::class, 'discoveryEvents']);
-});
+    Route::prefix('legacy')->group(function (): void {
+        Route::get('/reports/carriers', [LegacyReportController::class, 'carrierSummary']);
+        Route::get('/reports/ivr/{jobId}', [LegacyReportController::class, 'ivrDepthReport']);
+    });
 
-Route::prefix('connect')->group(function (): void {
-    Route::get('/monitors', [ConnectController::class, 'index']);
-    Route::post('/monitors', [ConnectController::class, 'store']);
-    Route::get('/monitors/{id}', [ConnectController::class, 'show']);
-    Route::get('/monitors/{id}/checks', [ConnectController::class, 'checks']);
-    Route::post('/monitors/{id}/run-check', [ConnectController::class, 'runCheck']);
-    Route::get('/monitors/{id}/stream', [StreamController::class, 'connectEvents']);
+    Route::prefix('discovery')->group(function (): void {
+        Route::get('/jobs', [DiscoveryController::class, 'index']);
+        Route::post('/jobs', [DiscoveryController::class, 'store']);
+        Route::get('/jobs/{id}', [DiscoveryController::class, 'show']);
+        Route::get('/jobs/{id}/tree', [DiscoveryController::class, 'tree']);
+        Route::post('/jobs/{id}/start', [DiscoveryController::class, 'start']);
+        Route::get('/jobs/{id}/stream', [StreamController::class, 'discoveryEvents']);
+        Route::post('/jobs/{id}/stream', [StreamController::class, 'discoveryEventsPost']);
+    });
+
+    Route::prefix('connect')->group(function (): void {
+        Route::get('/monitors', [ConnectController::class, 'index']);
+        Route::post('/monitors', [ConnectController::class, 'store']);
+        Route::get('/monitors/{id}', [ConnectController::class, 'show']);
+        Route::get('/monitors/{id}/checks', [ConnectController::class, 'checks']);
+        Route::post('/monitors/{id}/run-check', [ConnectController::class, 'runCheck']);
+        Route::get('/monitors/{id}/stream', [StreamController::class, 'connectEvents']);
+        Route::post('/monitors/{id}/stream', [StreamController::class, 'connectEventsPost']);
+    });
 });

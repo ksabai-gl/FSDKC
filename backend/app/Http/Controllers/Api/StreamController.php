@@ -29,6 +29,22 @@ class StreamController extends Controller
         return $this->streamSession($sessionId);
     }
 
+    public function discoveryEventsPost(Request $request, int $id): StreamedResponse
+    {
+        $sessionId = trim((string) $request->input('session_id', ''));
+        abort_if($sessionId === '', 400, 'session_id required');
+
+        return $this->streamSession($sessionId);
+    }
+
+    public function connectEventsPost(Request $request, int $id): StreamedResponse
+    {
+        $sessionId = trim((string) $request->input('session_id', ''));
+        abort_if($sessionId === '', 400, 'session_id required');
+
+        return $this->streamSession($sessionId);
+    }
+
     private function streamSession(string $sessionId): StreamedResponse
     {
         return response()->stream(function () use ($sessionId): void {

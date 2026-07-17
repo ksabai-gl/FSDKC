@@ -10,24 +10,36 @@ import {
 } from './mongo.js';
 import { store, buildTree } from './store.js';
 import { createSession, runConnectTest, runDiscoveryTest } from './realtime.js';
+import { assertProductionAuthConfig, requireDevApiAuth } from './middleware/auth.js';
 
 const PORT = process.env.PORT || 8080;
+const CORS_ORIGINS = (process.env.CORS_ALLOWED_ORIGINS || 'http://localhost:5173,http://localhost:3000')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: CORS_ORIGINS,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+}));
 app.use(express.json());
 
-// ── Health & MongoDB ──────────────────────────────────────────────
+// ── Health (public) ───────────────────────────────────────────────
 
 app.get('/api/health', async (_req, res) => {
   const mongo = await healthCheck();
   res.json({
     status: 'ok',
     platform: 'Klearcom',
-    version: '1.0.0',
+    version: '1.1.0',
     mongodb: mongo,
   });
 });
+
+app.use('/api', requireDevApiAuth);
 
 app.get('/api/mongodb/status', async (_req, res) => {
   res.json(await healthCheck());
@@ -52,8 +64,7 @@ app.get('/api/mongodb/diagnostics/:module/:referenceId', async (req, res) => {
     .toArray();
   res.json({ data: data.map(serializeDoc) });
 });
-
-// ── Dashboard ───────────────────────────────────────────────────
+// ── MongoDB & protected routes ────────────────────────────────────
 
 app.get('/api/dashboard/kpis', async (_req, res) => {
   const discoveryTotal = store.discoveryJobs.length;
@@ -267,6 +278,8 @@ async function streamSession(res, req, sessionId) {
 
 await connectMongo();
 await seedMongoData();
+
+assertProductionAuthConfig();
 
 const dbInfo = getDbInfo();
 app.listen(PORT, () => {

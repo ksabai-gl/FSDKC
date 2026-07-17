@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, getStreamUrl } from '../api/client';
+import { api, buildAuthHeaders, getApiBase } from '../api/client';
 import type { TestEvent } from '../types';
 
 interface StartResponse {
@@ -11,57 +11,91 @@ export function useRealtimeTest(module: 'discovery' | 'connect') {
   const [events, setEvents] = useState<TestEvent[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [progress, setProgress] = useState(0);
-  const sourceRef = useRef<EventSource | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const cleanup = useCallback(() => {
-    sourceRef.current?.close();
-    sourceRef.current = null;
+    abortRef.current?.abort();
+    abortRef.current = null;
   }, []);
 
   useEffect(() => cleanup, [cleanup]);
 
-  const connectStream = useCallback((resourceId: number, sessionId: string) => {
+  const connectStream = useCallback(async (resourceId: number, sessionId: string) => {
     cleanup();
     setEvents([]);
     setIsRunning(true);
     setProgress(0);
 
     const path = module === 'discovery'
-      ? `/discovery/jobs/${resourceId}/stream?session_id=${sessionId}`
-      : `/connect/monitors/${resourceId}/stream?session_id=${sessionId}`;
+      ? `/discovery/jobs/${resourceId}/stream`
+      : `/connect/monitors/${resourceId}/stream`;
 
-    const source = new EventSource(getStreamUrl(path));
-    sourceRef.current = source;
+    const controller = new AbortController();
+    abortRef.current = controller;
 
-    source.onmessage = (msg) => {
-      const doc = JSON.parse(msg.data) as TestEvent;
-      setEvents((prev) => [...prev, doc]);
+    const headers = buildAuthHeaders({ Accept: 'text/event-stream' });
 
-      const evt = doc.event;
-      if (evt?.progress != null) setProgress(evt.progress);
+    try {
+      const res = await fetch(`${getApiBase()}${path}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ session_id: sessionId }),
+        signal: controller.signal,
+      });
 
-      if (evt?.type === 'complete') {
-        setIsRunning(false);
-        setProgress(100);
-        source.close();
+      if (!res.ok || !res.body) {
+        throw new Error(`Stream failed: HTTP ${res.status}`);
       }
-    };
 
-    source.onerror = () => {
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() ?? '';
+
+        for (const part of parts) {
+          const line = part.split('\n').find((l) => l.startsWith('data: '));
+          if (!line) continue;
+
+          const doc = JSON.parse(line.slice(6)) as TestEvent;
+          setEvents((prev) => [...prev, doc]);
+
+          const evt = doc.event;
+          if (evt?.progress != null) setProgress(evt.progress);
+
+          if (evt?.type === 'complete') {
+            setIsRunning(false);
+            setProgress(100);
+            cleanup();
+            return;
+          }
+        }
+      }
+
       setIsRunning(false);
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        setIsRunning(false);
+      }
       cleanup();
-    };
+    }
   }, [module, cleanup]);
 
   const startDiscovery = useCallback(async (jobId: number) => {
     const res = await api.post<StartResponse>(`/discovery/jobs/${jobId}/start`, {});
-    connectStream(jobId, res.session_id);
+    await connectStream(jobId, res.session_id);
     return res;
   }, [connectStream]);
 
   const startConnectCheck = useCallback(async (monitorId: number) => {
     const res = await api.post<StartResponse>(`/connect/monitors/${monitorId}/run-check`, {});
-    connectStream(monitorId, res.session_id);
+    await connectStream(monitorId, res.session_id);
     return res;
   }, [connectStream]);
 
