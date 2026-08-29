@@ -1,97 +1,142 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-vi.mock('./client', () => ({
-  default: {
-    get: vi.fn(),
-    post: vi.fn(),
-  },
-}));
+describe('src/api/auth.js - Sanctum cookie-session auth', () => {
+  let axiosCreateSpy;
+  let requestInterceptors;
+  let responseInterceptors;
+  let mockAxiosGet;
 
-import client from './client';
-import { login, logout } from './auth';
-
-describe('login', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    localStorage.clear();
+    vi.resetModules();
+    requestInterceptors = [];
+    responseInterceptors = [];
+    process.env.REACT_APP_API_URL = 'https://api.example.test';
   });
 
-  it('requests the CSRF cookie before submitting credentials', async () => {
-    client.get.mockResolvedValue({});
-    client.post.mockResolvedValue({ data: { token: 'tok-1' } });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
+  });
 
-    await login('user@example.com', 'secret');
+  async function loadModuleWithMockedAxios() {
+    mockAxiosGet = vi.fn().mockResolvedValue({ data: 'ok' });
 
-    expect(client.get).toHaveBeenCalledWith('/sanctum/csrf-cookie');
-    expect(client.post).toHaveBeenCalledWith('/login', {
-      email: 'user@example.com',
-      password: 'secret',
+    const instanceInterceptors = {
+      request: { use: (fn) => requestInterceptors.push(fn) },
+      response: { use: (onFulfilled, onRejected) => responseInterceptors.push({ onFulfilled, onRejected }) },
+    };
+
+    const fakeInstance = { interceptors: instanceInterceptors };
+
+    axiosCreateSpy = vi.fn().mockReturnValue(fakeInstance);
+
+    vi.doMock('axios', () => ({
+      default: {
+        create: axiosCreateSpy,
+        get: mockAxiosGet,
+      },
+    }));
+
+    const mod = await import('./auth.js');
+    return { mod, fakeInstance };
+  }
+
+  it('BUG FIX: creates the axios instance with withCredentials true and no Authorization/localStorage token logic attached to config', async () => {
+    await loadModuleWithMockedAxios();
+
+    expect(axiosCreateSpy).toHaveBeenCalledTimes(1);
+    const createConfig = axiosCreateSpy.mock.calls[0][0];
+    expect(createConfig.withCredentials).toBe(true);
+    expect(createConfig.baseURL).toBe('https://api.example.test');
+  });
+
+  it('BUG FIX: does not register a request interceptor that attaches an Authorization Bearer header (removed localStorage token path)', async () => {
+    await loadModuleWithMockedAxios();
+
+    // The fixed auth.js must NOT register any request interceptor at all,
+    // since the dual-credential (Bearer + cookie) logic was removed.
+    expect(requestInterceptors.length).toBe(0);
+  });
+
+  it('REGRESSION: ignores any token present in localStorage - no Authorization header is attached even if a stale token exists', async () => {
+    const originalLocalStorage = globalThis.localStorage;
+    globalThis.localStorage = {
+      getItem: vi.fn().mockReturnValue('stale-token-value'),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    };
+
+    await loadModuleWithMockedAxios();
+
+    // No request interceptor should exist to read/attach this stale token.
+    expect(requestInterceptors.length).toBe(0);
+
+    globalThis.localStorage = originalLocalStorage;
+  });
+
+  it('BUG FIX: ensureCsrfCookie() calls the sanctum csrf-cookie endpoint with withCredentials true', async () => {
+    const { mod } = await loadModuleWithMockedAxios();
+
+    expect(typeof mod.ensureCsrfCookie).toBe('function');
+
+    await mod.ensureCsrfCookie();
+
+    expect(mockAxiosGet).toHaveBeenCalledTimes(1);
+    expect(mockAxiosGet).toHaveBeenCalledWith(
+      'https://api.example.test/sanctum/csrf-cookie',
+      expect.objectContaining({ withCredentials: true })
+    );
+  });
+
+  it('REGRESSION: registers exactly one response interceptor for handling API responses', async () => {
+    await loadModuleWithMockedAxios();
+
+    expect(responseInterceptors.length).toBe(1);
+  });
+
+  it('BUG FIX: response interceptor rejects 401 errors with sessionExpired flag set to true (session expired handling)', async () => {
+    await loadModuleWithMockedAxios();
+
+    const { onRejected } = responseInterceptors[0];
+    const error = { response: { status: 401 }, message: 'Unauthorized' };
+
+    await expect(onRejected(error)).rejects.toMatchObject({
+      sessionExpired: true,
+      response: { status: 401 },
     });
   });
 
-  it('stores the returned token in localStorage', async () => {
-    client.get.mockResolvedValue({});
-    client.post.mockResolvedValue({ data: { token: 'tok-2' } });
+  it('EDGE CASE: response interceptor passes through successful responses unchanged', async () => {
+    await loadModuleWithMockedAxios();
 
-    await login('user@example.com', 'secret');
+    const { onFulfilled } = responseInterceptors[0];
+    const response = { status: 200, data: { ok: true } };
 
-    expect(localStorage.getItem('auth_token')).toBe('tok-2');
+    expect(onFulfilled(response)).toBe(response);
   });
 
-  it('does not store a token when the response payload has none', async () => {
-    client.get.mockResolvedValue({});
-    client.post.mockResolvedValue({ data: {} });
+  it('EDGE CASE: response interceptor rejects non-401 errors without adding sessionExpired flag', async () => {
+    await loadModuleWithMockedAxios();
 
-    await login('user@example.com', 'secret');
+    const { onRejected } = responseInterceptors[0];
+    const error = { response: { status: 500 }, message: 'Server Error' };
 
-    expect(localStorage.getItem('auth_token')).toBeNull();
+    await expect(onRejected(error)).rejects.toEqual(error);
+    await expect(onRejected(error)).rejects.not.toHaveProperty('sessionExpired');
   });
 
-  it('does not throw when response.data is undefined', async () => {
-    client.get.mockResolvedValue({});
-    client.post.mockResolvedValue({});
+  it('EDGE CASE: response interceptor rejects network errors with no response object gracefully', async () => {
+    await loadModuleWithMockedAxios();
 
-    await expect(login('user@example.com', 'secret')).resolves.toBeUndefined();
-    expect(localStorage.getItem('auth_token')).toBeNull();
+    const { onRejected } = responseInterceptors[0];
+    const error = { message: 'Network Error' };
+
+    await expect(onRejected(error)).rejects.toEqual(error);
   });
 
-  it('returns the response data from the login call', async () => {
-    client.get.mockResolvedValue({});
-    const payload = { token: 'tok-3', user: { id: 1 } };
-    client.post.mockResolvedValue({ data: payload });
+  it('IMPACT: default export is the configured axios instance usable by API callers', async () => {
+    const { mod, fakeInstance } = await loadModuleWithMockedAxios();
 
-    const result = await login('user@example.com', 'secret');
-
-    expect(result).toEqual(payload);
-  });
-
-  it('propagates errors from the login request (e.g. invalid credentials)', async () => {
-    client.get.mockResolvedValue({});
-    const err = new Error('bad credentials');
-    client.post.mockRejectedValue(err);
-
-    await expect(login('user@example.com', 'wrong')).rejects.toThrow('bad credentials');
-  });
-
-  it('propagates errors from the CSRF cookie request', async () => {
-    const err = new Error('csrf endpoint unreachable');
-    client.get.mockRejectedValue(err);
-
-    await expect(login('user@example.com', 'secret')).rejects.toThrow('csrf endpoint unreachable');
-    expect(client.post).not.toHaveBeenCalled();
-  });
-});
-
-describe('logout', () => {
-  it('removes the auth_token from localStorage', () => {
-    localStorage.setItem('auth_token', 'tok-1');
-    logout();
-    expect(localStorage.getItem('auth_token')).toBeNull();
-  });
-
-  it('is a no-op and does not throw when no token is present', () => {
-    localStorage.removeItem('auth_token');
-    expect(() => logout()).not.toThrow();
-    expect(localStorage.getItem('auth_token')).toBeNull();
+    expect(mod.default).toBe(fakeInstance);
   });
 });
