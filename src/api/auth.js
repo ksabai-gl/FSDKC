@@ -1,16 +1,28 @@
-import client from "./client";
+import axios from 'axios';
 
-// Must be called before any Discovery/Connect/Dashboard request.
-// For Sanctum SPA (cookie) auth: hit the CSRF cookie endpoint first.
-export async function login(email, password) {
-  await client.get("/sanctum/csrf-cookie");
-  const response = await client.post("/login", { email, password });
-  if (response.data && response.data.token) {
-    localStorage.setItem("auth_token", response.data.token);
+const api = axios.create({
+  baseURL: process.env.REACT_APP_API_URL,
+  withCredentials: true, // Sanctum SPA auth relies exclusively on the session cookie
+});
+
+// Ensure CSRF cookie is set before state-changing requests (Sanctum requirement)
+export const ensureCsrfCookie = () =>
+  axios.get(`${process.env.REACT_APP_API_URL}/sanctum/csrf-cookie`, {
+    withCredentials: true,
+  });
+
+// No Authorization header / localStorage token logic — the cookie session is
+// the single source of truth for authentication, avoiding the dual-credential
+// inconsistency flagged in code review (mixing withCredentials + Bearer token).
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      // Session expired/invalid — surface to caller for redirect to login.
+      return Promise.reject({ ...error, sessionExpired: true });
+    }
+    return Promise.reject(error);
   }
-  return response.data;
-}
+);
 
-export function logout() {
-  localStorage.removeItem("auth_token");
-}
+export default api;
