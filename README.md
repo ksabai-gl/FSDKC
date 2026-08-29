@@ -49,25 +49,81 @@ Without `.env`, the API falls back to in-memory MongoDB.
 
 ### Full stack with Docker
 
+**First time setup:**
 ```bash
+# Copy environment template and set credentials
+cp .env.docker.example .env
+
+# Edit .env and set secure passwords for:
+# - DB_PASSWORD
+# - MYSQL_ROOT_PASSWORD
+
+# Start the stack
 docker compose up --build
 ```
+
+**Environment variables:**
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DB_PASSWORD` | Yes | MariaDB user password |
+| `MYSQL_ROOT_PASSWORD` | Yes | MariaDB root password |
+| `CORS_ALLOWED_ORIGINS` | No | Comma-separated list of allowed origins |
+| `APP_ENV` | No | Environment (local/production) |
+| `APP_DEBUG` | No | Debug mode (true/false) |
 
 Uses Laravel 12 + MariaDB 11 + MongoDB 7 with seed data.
 
 ## API Endpoints
 
-### Dashboard
+### Authentication
+All endpoints except `/api/health`, `/api/mongodb/status`, and `/api/auth/login` require authentication.
+
+**Login:**
+```bash
+curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "admin@klearcom.local", "password": "password"}'
+```
+
+Response:
+```json
+{
+  "user": { "id": 1, "name": "Ops Admin", "email": "admin@klearcom.local" },
+  "token": "1|abcdef...",
+  "token_type": "Bearer"
+}
+```
+
+**Use the token in subsequent requests:**
+```bash
+curl http://localhost:8080/api/dashboard/kpis \
+  -H "Authorization: Bearer 1|abcdef..."
+```
+
+### Public Endpoints
+- `GET /api/health` — Platform health check
+- `GET /api/mongodb/status` — MongoDB connection status
+- `POST /api/auth/login` — Authenticate and get token
+
+### Protected Endpoints (require `Authorization: Bearer <token>`)
+
+#### Auth Management
+- `POST /api/auth/logout` — Revoke current token
+- `GET /api/auth/user` — Get current user
+- `GET /api/auth/tokens` — List user tokens
+- `DELETE /api/auth/tokens/{id}` — Revoke specific token
+
+#### Dashboard
 - `GET /api/dashboard/kpis` — Platform KPIs
 
-### Discovery (IVR mapping)
+#### Discovery (IVR mapping)
 - `GET /api/discovery/jobs`
 - `POST /api/discovery/jobs`
 - `GET /api/discovery/jobs/{id}`
 - `GET /api/discovery/jobs/{id}/tree`
 - `POST /api/discovery/jobs/{id}/start`
 
-### Connect (TFN monitoring)
+#### Connect (TFN monitoring)
 - `GET /api/connect/monitors`
 - `POST /api/connect/monitors`
 - `GET /api/connect/monitors/{id}`

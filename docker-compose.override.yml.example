@@ -1,0 +1,26 @@
+# Docker Compose Override Example
+# Copy this file to docker-compose.override.yml and set your credentials
+# Do NOT commit docker-compose.override.yml to version control
+
+# This file is merged with docker-compose.yml automatically by Docker Compose.
+# Environment variables here override the base configuration.
+
+services:
+  app:
+    environment:
+      # Override APP_ENV for production deployments
+      # APP_ENV: production
+      # APP_DEBUG: "false"
+      pass
+
+  mariadb:
+    # Example: Restrict port binding to localhost only
+    # ports:
+    #   - "127.0.0.1:3306:3306"
+    pass
+
+  mongodb:
+    # Example: Restrict port binding to localhost only
+    # ports:
+    #   - "127.0.0.1:27017:27017"
+    pass
