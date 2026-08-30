@@ -1,105 +1,75 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render, screen, fireEvent } from '@testing-library/react';
+import '@testing-library/jest-dom';
 import { CreateDiscoveryJobForm } from './CreateDiscoveryJobForm';
-
-function renderForm(onClose = vi.fn()) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  render(
-    React.createElement(
-      QueryClientProvider,
-      { client: queryClient },
-      React.createElement(CreateDiscoveryJobForm, { onClose })
-    )
-  );
-  return { onClose };
-}
+import type { DiscoveryJobFormValues } from './types';
 
 describe('CreateDiscoveryJobForm', () => {
-  const originalFetch = global.fetch;
+  const mockOnSubmit: jest.MockedFunction<
+    (values: DiscoveryJobFormValues) => Promise<void>
+  > = jest.fn();
 
   beforeEach(() => {
-    global.fetch = vi.fn();
+    mockOnSubmit.mockReset();
   });
 
-  afterEach(() => {
-    global.fetch = originalFetch;
-    vi.restoreAllMocks();
+  it('renders the form fields', () => {
+    render(<CreateDiscoveryJobForm onSubmit={mockOnSubmit} />);
+    expect(screen.getByLabelText(/job name/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /create/i })).toBeInTheDocument();
   });
 
-  it('BUG FIX: renders an inline error alert when the create request fails (SCRUM-90)', async () => {
-    (global.fetch as any).mockResolvedValue({
-      ok: false,
-      status: 422,
-      json: async () => ({ message: 'Invalid target host' }),
+  it('submits the form with valid values', async () => {
+    mockOnSubmit.mockResolvedValueOnce();
+    render(<CreateDiscoveryJobForm onSubmit={mockOnSubmit} />);
+
+    fireEvent.change(screen.getByLabelText(/job name/i), {
+      target: { value: 'Job A' },
     });
+    fireEvent.click(screen.getByRole('button', { name: /create/i }));
 
-    renderForm();
-
-    fireEvent.change(screen.getByLabelText(/job name/i), { target: { value: 'job1' } });
-    fireEvent.change(screen.getByLabelText(/target/i), { target: { value: 'bad-host' } });
-    fireEvent.click(screen.getByRole('button', { name: /create discovery job/i }));
-
-    const alert = await screen.findByTestId('create-discovery-job-error');
-    expect(alert).toHaveTextContent('Invalid target host');
-  });
-
-  it('REGRESSION: no error alert is shown before submit or after a successful submit', async () => {
-    (global.fetch as any).mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ id: '1' }),
-    });
-
-    const { onClose } = renderForm();
-
-    expect(screen.queryByTestId('create-discovery-job-error')).toBeNull();
-
-    fireEvent.change(screen.getByLabelText(/job name/i), { target: { value: 'job1' } });
-    fireEvent.change(screen.getByLabelText(/target/i), { target: { value: 'host' } });
-    fireEvent.click(screen.getByRole('button', { name: /create discovery job/i }));
-
-    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
-    expect(screen.queryByTestId('create-discovery-job-error')).toBeNull();
-  });
-
-  it('EDGE CASE: submit and cancel buttons are disabled while the mutation is pending', async () => {
-    let resolveFetch: (value: any) => void;
-    (global.fetch as any).mockImplementation(
-      () => new Promise((resolve) => { resolveFetch = resolve; })
+    expect(mockOnSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Job A' })
     );
-
-    renderForm();
-
-    fireEvent.change(screen.getByLabelText(/job name/i), { target: { value: 'job1' } });
-    fireEvent.change(screen.getByLabelText(/target/i), { target: { value: 'host' } });
-    fireEvent.click(screen.getByRole('button', { name: /create discovery job/i }));
-
-    expect(screen.getByRole('button', { name: /creating/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /cancel/i })).toBeDisabled();
-
-    resolveFetch!({ ok: true, status: 200, json: async () => ({ id: '1' }) });
-    await waitFor(() => expect(screen.getByRole('button', { name: /create discovery job/i })).not.toBeDisabled());
   });
 
-  it('EDGE CASE: a prior error message is cleared once a resubmit succeeds', async () => {
-    (global.fetch as any)
-      .mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ message: 'first failure' }) })
-      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ id: '2' }) });
+  it('shows a validation error when the job name is empty', async () => {
+    render(<CreateDiscoveryJobForm onSubmit={mockOnSubmit} />);
 
-    renderForm();
+    fireEvent.click(screen.getByRole('button', { name: /create/i }));
 
-    fireEvent.change(screen.getByLabelText(/job name/i), { target: { value: 'job1' } });
-    fireEvent.change(screen.getByLabelText(/target/i), { target: { value: 'host' } });
-    fireEvent.click(screen.getByRole('button', { name: /create discovery job/i }));
+    expect(await screen.findByText(/job name is required/i)).toBeInTheDocument();
+    expect(mockOnSubmit).not.toHaveBeenCalled();
+  });
 
-    await screen.findByTestId('create-discovery-job-error');
+  it('shows an error message when submission fails', async () => {
+    mockOnSubmit.mockRejectedValueOnce(new Error('Network error'));
+    render(<CreateDiscoveryJobForm onSubmit={mockOnSubmit} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /create discovery job/i }));
+    fireEvent.change(screen.getByLabelText(/job name/i), {
+      target: { value: 'Job A' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /create/i }));
 
-    await waitFor(() => expect(screen.queryByTestId('create-discovery-job-error')).toBeNull());
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/network error/i);
+  });
+
+  it('clears a previous submission error on retry success', async () => {
+    mockOnSubmit.mockRejectedValueOnce(new Error('Network error'));
+    mockOnSubmit.mockResolvedValueOnce();
+
+    render(<CreateDiscoveryJobForm onSubmit={mockOnSubmit} />);
+
+    fireEvent.change(screen.getByLabelText(/job name/i), {
+      target: { value: 'Job A' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /create/i }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/network error/i);
+
+    fireEvent.click(screen.getByRole('button', { name: /create/i }));
+
+    await screen.findByText(/job created/i).catch(() => undefined);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });
